@@ -1,0 +1,15 @@
+tunnel-address.txt
+.env
+.env.*
+!.env.example
+credentials*.json
+credentials*.json.*.tmp
+.config/
+MagpieDashboard/
+node_modules/
+runtime/
+dist/
+release/
+*.log
+*.pid
+*.zip
