@@ -1,3 +1,6 @@
+:root[data-platform="desktop"] .masthead { display: none; }
+:root[data-platform="desktop"] .shell { max-width: 1440px; }
+:root[data-platform="desktop"] .login-panel { margin-block: 9vh 5vh; }
 @font-face {
   font-family: 'DM Sans';
   font-style: normal;
@@ -123,6 +126,43 @@
 :root[data-theme="claude"] .login-panel h1,
 :root[data-theme="claude"] .workspace-path h1 { font-family: var(--heading-font); }
 :root[data-theme="claude"] .login-symbol { color: var(--accent); }
+
+:root[data-theme="forest"] {
+  --paper: #f4f7f1;
+  --panel: #fcfefb;
+  --ink: #273d33;
+  --muted: #52675a;
+  --line: #d2ded1;
+  --accent: #2b5748;
+  --soft: #e9f0e7;
+  --primary: #2b5748;
+  --primary-hover: #204739;
+  --hover-line: #91a893;
+  --focus: #2b5748;
+  --nav-selected: #ddeadd;
+  --nav-indicator: #527a5d;
+  --selected: #2b5748;
+  --expanded: #edf4eb;
+  --status-bg: #eef4ec;
+  --status-line: #d2ded1;
+  --success: #2b5748;
+  --success-bg: #e3efe1;
+  --success-line: #bed4bb;
+  --success-ring: #2b574818;
+  --running: #346a66;
+  --running-bg: #e6f1ee;
+  --running-line: #bed8d1;
+  --shadow: #273d330a;
+  --sans: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --heading-font: 'Lora', 'Noto Serif SC UI', 'SimSun', serif;
+  --metric-font: 'DM Sans', var(--mono);
+  --control-radius: 8px;
+  --panel-radius: 12px;
+  --nav-radius: 8px;
+  --badge-radius: 6px;
+  --surface-shadow: 0 2px 8px #273d3305;
+  --heading-weight: 600;
+}
 
 :root[data-theme="google"] {
   --paper: #f8fafd;

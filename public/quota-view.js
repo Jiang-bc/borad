@@ -2,11 +2,14 @@
 const dashboardThemes = Object.freeze({
  github: { color: '#f6f8fa' },
  claude: { color: '#f5f4ed' },
- google: { color: '#f8fafd' }
+ google: { color: '#f8fafd' },
+ forest: { color: '#f4f7f1' }
 });
 // Apply the saved theme before the stylesheet paints, under the existing CSP.
 try {
- const savedTheme = localStorage.getItem('magpie-theme');
+ const desktopParams = new URLSearchParams(location.search);
+ if (desktopParams.get('desktop') === '1') document.documentElement.dataset.platform = 'desktop';
+ const savedTheme = desktopParams.get('desktop') === '1' ? desktopParams.get('theme') || 'claude' : localStorage.getItem('magpie-theme');
  if (Object.hasOwn(dashboardThemes, savedTheme)) {
   document.documentElement.dataset.theme = savedTheme;
   document.querySelector('meta[name="theme-color"]').content = dashboardThemes[savedTheme].color;

@@ -1,0 +1,43 @@
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+$bitmap = [Drawing.Bitmap]::new(256, 256)
+$graphics = [Drawing.Graphics]::FromImage($bitmap)
+$graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+$graphics.TextRenderingHint = [Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+$shape = [Drawing.Drawing2D.GraphicsPath]::new()
+foreach ($corner in @(@(8,8,180), @(188,8,270), @(188,188,0), @(8,188,90))) {
+  $shape.AddArc($corner[0], $corner[1], 60, 60, $corner[2], 90)
+}
+$shape.CloseFigure()
+$brush = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#a9472e'))
+$foreground = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#fffaf0'))
+$graphics.FillPath($brush, $shape)
+$font = [Drawing.Font]::new('Georgia', 155, [Drawing.FontStyle]::Regular, [Drawing.GraphicsUnit]::Pixel)
+$graphics.DrawString('b', $font, $foreground, 54, 30)
+$graphics.FillEllipse($foreground, 177, 171, 18, 18)
+$stream = [IO.MemoryStream]::new()
+$bitmap.Save($stream, [Drawing.Imaging.ImageFormat]::Png)
+$png = $stream.ToArray()
+$iconFile = [IO.File]::Create((Join-Path $PSScriptRoot '..\assets\borad.ico'))
+$writer = [IO.BinaryWriter]::new($iconFile)
+$writer.Write([uint16]0)
+$writer.Write([uint16]1)
+$writer.Write([uint16]1)
+$writer.Write([byte]0)
+$writer.Write([byte]0)
+$writer.Write([byte]0)
+$writer.Write([byte]0)
+$writer.Write([uint16]1)
+$writer.Write([uint16]32)
+$writer.Write([uint32]$png.Length)
+$writer.Write([uint32]22)
+$writer.Write($png)
+$writer.Dispose()
+$stream.Dispose()
+$graphics.Dispose()
+$bitmap.Dispose()
+$shape.Dispose()
+$font.Dispose()
+$brush.Dispose()
+$foreground.Dispose()
+Write-Output 'Borad application icon generated.'

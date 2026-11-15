@@ -1,0 +1,52 @@
+module.exports = {
+  appId: "com.borad.desktop",
+  productName: "Borad",
+  asar: true,
+  electronVersion: "45.3.2",
+  electronDist: process.env.BORAD_ELECTRON_DIST || undefined,
+  directories: { output: "release", buildResources: "assets" },
+  files: [
+    "*.cjs",
+    "!electron-builder.cjs",
+    "package.json",
+    "desktop/main.cjs",
+    "desktop/preload.cjs",
+    "desktop/dashboard-preload.cjs",
+    "desktop/ui/**/*",
+    "public/**/*",
+  ],
+  extraResources: [
+    { from: "desktop/bin/cloudflared.exe", to: "cloudflared.exe" },
+    {
+      from: "desktop/bin/cloudflared-LICENSE",
+      to: "licenses/cloudflared-LICENSE.txt",
+    },
+    {
+      from: "node_modules/@fontsource-variable/noto-sans-sc/LICENSE",
+      to: "licenses/noto-sans-sc-LICENSE.txt",
+    },
+    { from: "node_modules/react/LICENSE", to: "licenses/react-LICENSE.txt" },
+    {
+      from: "node_modules/react-dom/LICENSE",
+      to: "licenses/react-dom-LICENSE.txt",
+    },
+    {
+      from: "node_modules/lucide-react/LICENSE",
+      to: "licenses/lucide-LICENSE.txt",
+    },
+    { from: "RELEASE-README.md", to: "使用说明.txt" },
+  ],
+  artifactName: "Borad-${version}-win-x64.${ext}",
+  win: { icon: "assets/borad.ico", target: ["nsis", "zip"] },
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: "Borad",
+    installerLanguages: ["zh_CN", "en_US"],
+    displayLanguageSelector: false,
+  },
+  publish: null,
+};

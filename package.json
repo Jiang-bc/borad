@@ -1,0 +1,29 @@
+{
+  "name": "borad-desktop",
+  "version": "1.0.0",
+  "description": "Magpie usage dashboard for Windows",
+  "main": "desktop/main.cjs",
+  "private": true,
+  "productName": "Borad",
+  "author": "Jiang-bc",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "npm run build && node scripts/start-desktop.cjs",
+    "build": "tsc -p desktop/renderer/tsconfig.json && vite build",
+    "package:win": "npm run build && node scripts/prepare-runtime.cjs && node scripts/package-windows.cjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@fontsource-variable/noto-sans-sc": "5.3.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0",
+    "lucide-react": "1.73.0",
+    "playwright-core": "1.65.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  }
+}

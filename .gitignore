@@ -13,3 +13,6 @@ release/
 *.log
 *.pid
 *.zip
+desktop/bin/
+desktop/ui/
+desktop/test-output/
