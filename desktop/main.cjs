@@ -6,12 +6,15 @@ const {
   ipcMain,
   clipboard,
   dialog,
+  safeStorage,
 } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { spawn } = require("node:child_process");
 const { createApp } = require("../server.cjs");
 const { credentialsPath } = require("../credentials.cjs");
+const { appId, createDesktopSettings } = require("./settings.cjs");
+const { pushLink } = require("./link-push.cjs");
 
 const port = 18790;
 const origin = `http://127.0.0.1:${port}`;
@@ -20,6 +23,7 @@ const views = new Set(["requests", "tokens", "quota", "settings"]);
 let window,
   dashboard,
   service,
+  settings,
   ready = false,
   error = "",
   active = "home",
@@ -29,6 +33,7 @@ let tunnel,
   shareError = "",
   deadline;
 let theme = "claude";
+let pushResult = "", pushBusy = false, pushGeneration = 0, startupError = "";
 
 function status() {
   return {
@@ -38,16 +43,19 @@ function status() {
     address,
     sharing: Boolean(tunnel),
     shareError,
-    startup: app.getLoginItemSettings(loginOptions()).openAtLogin,
+    startup: settings.startup,
+    startupError,
+    autoShare: settings.autoShare,
+    push: settings.pushState,
+    pushResult,
+    pushBusy,
     version: app.getVersion(),
     records: service?.source?.history?.length || 0,
     sourceReady: service?.source?.meta?.history?.ok === true,
   };
 }
 function loginOptions() {
-  return app.isPackaged
-    ? {}
-    : { path: process.execPath, args: [app.getAppPath()] };
+  return { path: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()] };
 }
 function notify() {
   if (window && !window.isDestroyed())
@@ -94,6 +102,13 @@ async function navigate(view) {
       });
       window.contentView.addChildView(dashboard);
     }
+    await dashboard.webContents.session.cookies.set({
+      url: origin,
+      name: "_mpr",
+      value: service.createDesktopSession(),
+      httpOnly: true,
+      sameSite: "strict",
+    });
     active = view;
     resize();
     dashboard.setVisible(true);
@@ -109,8 +124,31 @@ function stopShare() {
   const child = tunnel;
   tunnel = null;
   address = "";
+  pushGeneration++;
+  pushResult = "";
+  pushBusy = false;
   if (child) child.kill();
   notify();
+}
+async function sendShareLink() {
+  if (pushBusy || !address || quitting) return;
+  const generation = ++pushGeneration;
+  pushBusy = true;
+  pushResult = "正在提交推送…";
+  notify();
+  try {
+    const { sent, failed } = await pushLink(address, settings.pushCredentials());
+    if (generation !== pushGeneration) return;
+    const names = channels => channels.map(channel => channel === "wechat" ? "微信" : "QQ").join("、");
+    pushResult = [sent.length && `${names(sent)}：推送请求已提交`, failed.length && `${names(failed)}：推送失败，请检查绑定、Token 或网络`].filter(Boolean).join("；");
+  } catch (cause) {
+    if (generation === pushGeneration) pushResult = cause.message;
+  } finally {
+    if (generation === pushGeneration) {
+      pushBusy = false;
+      notify();
+    }
+  }
 }
 function startShare() {
   if (tunnel || !ready) return;
@@ -147,6 +185,7 @@ function startShare() {
       address = candidate;
       clearTimeout(deadline);
       notify();
+      if (settings.pushState.automatic) void sendShareLink();
     }
   });
   child.on("error", () => fail("分享组件启动失败，请重新安装 Borad。"));
@@ -166,7 +205,15 @@ function handle(channel, callback) {
 }
 async function launch() {
   Menu.setApplicationMenu(null);
-  app.setAppUserModelId("com.borad.desktop");
+  app.setAppUserModelId(appId);
+  settings = createDesktopSettings({
+    directory: app.getPath("userData"),
+    loginOptions: loginOptions(),
+    getLogin: options => app.getLoginItemSettings(options),
+    setLogin: options => app.setLoginItemSettings(options),
+    secrets: safeStorage,
+  });
+  try { settings.restoreStartup(); } catch { startupError = "未能恢复开机启动，请在首页重新设置。"; }
   window = new BrowserWindow({
     width: 1160,
     height: 900,
@@ -199,12 +246,29 @@ async function launch() {
     if (dashboard && event.sender === dashboard.webContents && event.senderFrame === dashboard.webContents.mainFrame && new URL(event.senderFrame.url).origin === origin) navigate("home");
   });
   handle("borad:startup", (enabled) => {
-    const openAtLogin = enabled === true;
-    app.setLoginItemSettings({ ...loginOptions(), openAtLogin });
-    const next = status();
-    if (next.startup !== openAtLogin)
-      throw new Error("无法更新开机启动设置，请检查 Windows 登录项权限。");
-    return next;
+    settings.setStartup(enabled);
+    startupError = "";
+    return status();
+  });
+  handle("borad:auto-share", enabled => {
+    settings.setAutoShare(enabled);
+    return status();
+  });
+  handle("borad:configure-push", options => {
+    settings.configurePush(options);
+    if (!pushBusy) pushResult = "";
+    return status();
+  });
+  handle("borad:clear-push", () => {
+    settings.clearPush();
+    pushGeneration++;
+    pushBusy = false;
+    pushResult = "";
+    return status();
+  });
+  handle("borad:send-link", async () => {
+    await sendShareLink();
+    return status();
   });
   handle("borad:theme", (value) => {
     const colors = {
@@ -215,6 +279,8 @@ async function launch() {
     };
     if (!Object.hasOwn(colors, value)) throw new Error("未知主题");
     theme = value;
+    if (dashboard && !dashboard.webContents.isDestroyed())
+      dashboard.webContents.send("borad:dashboard-theme", value);
     window.setTitleBarOverlay({
       color: colors[value][0],
       symbolColor: colors[value][1],
@@ -245,6 +311,10 @@ async function launch() {
         : "本机数据服务启动失败，请重新打开 Borad。";
   }
   notify();
+  if (ready && !quitting) {
+    if (settings.autoShare) startShare();
+    await navigate("requests");
+  }
 }
 if (app.requestSingleInstanceLock()) {
   app.on("second-instance", () => {

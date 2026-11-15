@@ -1,6 +1,14 @@
 :root[data-platform="desktop"] .masthead { display: none; }
 :root[data-platform="desktop"] .shell { max-width: 1440px; }
 :root[data-platform="desktop"] .login-panel { margin-block: 9vh 5vh; }
+:root[data-platform="desktop"] #dashboard { display: flex; flex-direction: column; gap: 14px; padding-top: 20px; }
+:root[data-platform="desktop"] #dashboard[hidden] { display: none; }
+:root[data-platform="desktop"] #dashboard > .view-tabs,
+:root[data-platform="desktop"] #logout,
+:root[data-platform="desktop"] .workspace-path > a,
+:root[data-platform="desktop"] .workspace-path > span,
+:root[data-platform="desktop"] footer { display: none; }
+:root[data-platform="desktop"] #dashboard > .title-row { padding-bottom: 12px; }
 @font-face {
   font-family: 'DM Sans';
   font-style: normal;

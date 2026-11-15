@@ -27,7 +27,7 @@
     </div>
   </header>
   <main>
-    <section id="login" class="login-panel" aria-labelledby="login-title">
+    <section id="login" class="login-panel" aria-labelledby="login-title" hidden>
       <div class="login-symbol" aria-hidden="true">↗</div>
       <h1 id="login-title">登录用量看板</h1>
       <p class="intro">查看请求流水、Token 用量与剩余额度。</p>
@@ -39,7 +39,7 @@
         </div>
         <p id="login-error" role="alert" class="error-text"></p>
       </form>
-      <p id="password-help" class="hint">初始口令为 jbc；修改过口令后请使用新口令。登录后可在设置中管理，会话有效期 12 小时。</p>
+      <p id="password-help" class="hint">请输入看板所有者设置的访问口令，会话有效期 12 小时。</p>
       <div class="login-foot"><span class="mini-dot" aria-hidden="true"></span>账号已脱敏 · 不展示请求正文</div>
     </section>
     <section id="dashboard" hidden aria-labelledby="title">
@@ -78,11 +78,11 @@
         </details>
       </form>
       <div class="list-heading"><h2>请求记录 <span id="result-count"></span></h2><span>最新在前</span></div>
-      <div id="requests" class="requests" aria-busy="true"><p class="empty">正在读取本机请求…</p></div>
+      <div id="request-list" class="requests" aria-busy="true"><p class="empty">正在读取本机请求…</p></div>
       <nav class="pagination" aria-label="历史记录分页"><button id="prev">← 上一页</button><span id="page-label">第 1 / 1 页</span><button id="next">下一页 →</button></nav>
       <form id="page-jump" class="page-jump" novalidate><label for="page-input">跳至页码</label><input id="page-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="1" disabled aria-describedby="page-error"><button id="page-go" type="submit" disabled>确认跳转</button><span id="page-error" class="error-text" role="alert"></span></form>
       <p id="page-note" class="hint" hidden>翻页期间固定记录范围；回到第一页后恢复最新请求。</p>
-      <aside class="source-info"><strong>数据来源</strong><p>每 3 秒读取本机日志与近期实时追踪。未记录的字段和尝试路径不作推测；账号匿名展示，不展示请求正文、密钥或原始错误。</p><p id="source-time">等待数据源</p></aside>
+      <details class="source-info"><summary>数据来源与说明</summary><p>每 3 秒读取本机日志与近期实时追踪。未记录的字段和尝试路径不作推测；账号匿名展示，不展示请求正文、密钥或原始错误。</p><p id="source-time">等待数据源</p></details>
       </div>
       <div id="view-tokens" role="tabpanel" aria-labelledby="tab-tokens" hidden>
         <form id="token-filters" class="token-filters" aria-label="Token 用量筛选">
@@ -111,7 +111,7 @@
         <nav class="pagination" aria-label="Token 用量分页"><button id="token-prev" type="button" disabled>← 上一页</button><span id="token-page-label">第 1 页</span><button id="token-next" type="button" disabled>下一页 →</button></nav>
         <form id="token-page-jump" class="page-jump" novalidate><label for="token-page-input">明细跳至页码</label><input id="token-page-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="1" disabled aria-describedby="token-page-error"><button id="token-page-go" type="submit" disabled>确认跳转</button><span id="token-page-error" class="error-text" role="alert"></span></form>
         <p class="hint" id="token-page-note" hidden>浏览后续页时暂停自动刷新，筛选条件不变。点击刷新可重新读取本页。</p>
-        <aside class="source-info"><strong>统计口径</strong><p>Token 统一以 M 展示（1 M = 1,000,000 token），完整整数可在数值提示中查看。只统计本机网关历史日志，不包含尚未落盘的实时请求或仅在外部会话统计中出现的用量。总 Token = 已记录输入 + 已记录输出；字段缺失时会提示汇总不完整。缓存读取、写入单列，缓存与 reasoning 不额外加入总数。单条缺失用量显示「未记录」。</p><p>总消耗为 API 参考价估算，以美元（USD）展示，不代表真实支付或实际账单。免费（free）模型、免费及订阅调用也按对应标准付费 API 参考价估算；匹配型号、单价、缓存费用及具体算费由后端负责。未定价请求不按 $0 计入。</p><p>今天与近 7 天按北京时间（UTC+8）自然日计算，近 7 天含今天。历史曾用供应商仍可查看，不受当前停用状态影响；请求时间按当前设备时区显示。</p><p id="token-source-time">等待数据源</p></aside>
+        <details class="source-info"><summary>统计口径与说明</summary><p>Token 统一以 M 展示（1 M = 1,000,000 token），完整整数可在数值提示中查看。只统计本机网关历史日志，不包含尚未落盘的实时请求或仅在外部会话统计中出现的用量。总 Token = 已记录输入 + 已记录输出；字段缺失时会提示汇总不完整。缓存读取、写入单列，缓存与 reasoning 不额外加入总数。单条缺失用量显示「未记录」。</p><p>总消耗为 API 参考价估算，以美元（USD）展示，不代表真实支付或实际账单。免费（free）模型、免费及订阅调用也按对应标准付费 API 参考价估算；匹配型号、单价、缓存费用及具体算费由后端负责。未定价请求不按 $0 计入。</p><p>今天与近 7 天按北京时间（UTC+8）自然日计算，近 7 天含今天。历史曾用供应商仍可查看，不受当前停用状态影响；请求时间按当前设备时区显示。</p><p id="token-source-time">等待数据源</p></details>
       </div>
       <div id="view-quota" role="tabpanel" aria-labelledby="tab-quota" hidden>
         <div class="quota-toolbar"><label for="quota-provider">供应商<select id="quota-provider"><option value="">全部供应商</option></select></label><button type="button" id="quota-refresh">↻ 刷新额度</button></div>
@@ -124,7 +124,7 @@
         <p id="quota-refresh-state" class="hint" role="status">等待读取</p>
         <div id="quota-notice" class="notice" role="status" hidden></div>
         <div id="quota-cards" class="quota-cards" aria-busy="true"><p class="empty">正在读取本机额度缓存…</p></div>
-        <aside class="source-info"><strong>额度口径</strong><p>同供应商、同语义窗口按账号汇总：同单位数量相加，同套餐百分比取平均。不同周期独立展示；余额总额已包含的分项不重复相加，窗口额度也不加入余额。未知值明确标为未知，查询失败保留历史值及源采集时间。额度页可见且未暂停时，每 60 秒向供应商采集，缓存每 3 秒同步；手动刷新立即排队采集，逐供应商显示进度。仅当所有有效窗口和余额均耗尽时隐藏供应商。</p><p id="quota-read-time">等待读取缓存</p></aside>
+        <details class="source-info"><summary>额度口径与说明</summary><p>同供应商、同语义窗口按账号汇总：同单位数量相加，同套餐百分比取平均。不同周期独立展示；余额总额已包含的分项不重复相加，窗口额度也不加入余额。未知值明确标为未知，查询失败保留历史值及源采集时间。额度页可见且未暂停时，每 60 秒向供应商采集，缓存每 3 秒同步；手动刷新立即排队采集，逐供应商显示进度。仅当所有有效窗口和余额均耗尽时隐藏供应商。</p><p id="quota-read-time">等待读取缓存</p></details>
       </div>
       <div id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <section class="settings-card" aria-labelledby="settings-display-title">

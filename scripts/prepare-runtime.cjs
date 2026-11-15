@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 
 const directory = path.join(__dirname, '..', 'desktop', 'bin');
 const expected = 'd5c1d82031da6253dcdcff64c944cd0fe063016edeb2e4fd088075fc9bd52d0a';
+const expectedLicense = '58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd';
 const version = '2026.11.0';
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 async function fetchFile(url) {
@@ -20,9 +21,17 @@ async function main() {
   }
   if (!binary) binary = await fetchFile(`https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-windows-amd64.exe`);
   if (digest(binary) !== expected) throw new Error('Cloudflared SHA256 does not match the official release.');
-  await fs.writeFile(path.join(directory, 'cloudflared.exe'), binary);
-  const license = await fetchFile(`https://raw.githubusercontent.com/cloudflare/cloudflared/${version}/LICENSE`);
-  await fs.writeFile(path.join(directory, 'cloudflared-LICENSE'), license);
+  const target = path.join(directory, 'cloudflared.exe');
+  let targetMatches = false;
+  try { targetMatches = digest(await fs.readFile(target)) === expected; } catch {}
+  if (!targetMatches) await fs.writeFile(target, binary);
+  const licensePath = path.join(directory, 'cloudflared-LICENSE');
+  const cachedLicense = await fs.readFile(licensePath).catch(() => null);
+  if (!cachedLicense || digest(cachedLicense) !== expectedLicense) {
+    const license = await fetchFile(`https://raw.githubusercontent.com/cloudflare/cloudflared/${version}/LICENSE`);
+    if (digest(license) !== expectedLicense) throw new Error('Cloudflared license SHA256 does not match the official release.');
+    await fs.writeFile(licensePath, license);
+  }
   console.log(`Verified cloudflared ${version}; runtime resources prepared.`);
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

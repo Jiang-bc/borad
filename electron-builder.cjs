@@ -12,6 +12,8 @@ module.exports = {
     "desktop/main.cjs",
     "desktop/preload.cjs",
     "desktop/dashboard-preload.cjs",
+    "desktop/settings.cjs",
+    "desktop/link-push.cjs",
     "desktop/ui/**/*",
     "public/**/*",
   ],

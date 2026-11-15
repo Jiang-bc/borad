@@ -11,7 +11,8 @@ function createApp({source=new Source(),password=crypto.randomBytes(24).toString
  function headers(res){res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Cross-Origin-Opener-Policy','same-origin');res.setHeader('Cache-Control','no-store');}
  function json(res,status,body){headers(res);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(body));}
  function hostAllowed(req){const host=req.headers.host; if([`127.0.0.1:${port}`,`localhost:${port}`].includes(host))return true;if(typeof publicHost==='function')return host===publicHost();if(publicHost&&host===publicHost)return true;try{return host===new URL(fs.readFileSync(path.join(DIR,'tunnel-address.txt'),'utf8').trim()).host;}catch{return false;}}
- function session(req){const token=/(?:^|;\s*)_mpr=([\w-]+)/.exec(req.headers.cookie||'')?.[1],s=sessions.get(token);if(!s||s.expires<Date.now()){if(s)sessions.delete(token);return null;}return {...s,token};}
+ function session(req){const token=/(?:^|;\s*)_mpr=([\w-]+)/.exec(req.headers.cookie||'')?.[1],s=sessions.get(token);if(!s||s.expires<Date.now()){if(s)sessions.delete(token);return null;}if(s.desktop&&(req.headers.host!==`127.0.0.1:${port}`||req.headers['x-forwarded-proto']||req.headers['cf-connecting-ip']))return null;return {...s,token};}
+ function createDesktopSession(){for(const [token,value] of sessions)if(value.desktop&&value.expires>Date.now())return token;const token=crypto.randomBytes(32).toString('base64url'),csrf=crypto.randomBytes(24).toString('base64url');sessions.set(token,{csrf,expires:Date.now()+730*TTL,desktop:true});return token;}
  function cookie(req,value,age){return `_mpr=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${req.headers['x-forwarded-proto']==='https'?'; Secure':''}`;}
  function originOk(req,write=false){const scheme=req.headers['x-forwarded-proto']==='https'?'https':'http';return req.headers['sec-fetch-site']!=='cross-site'&&req.headers['sec-fetch-site']!=='same-site'&&(!write||!!req.headers.origin)&&(!req.headers.origin||req.headers.origin===`${scheme}://${req.headers.host}`);}
  async function body(req){if(!String(req.headers['content-type']||'').startsWith('application/json'))throw new Error('type');let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>4096)throw new Error('large');}return JSON.parse(text);}
@@ -27,7 +28,7 @@ function createApp({source=new Source(),password=crypto.randomBytes(24).toString
    if(Date.now()-windowStart>15*60*1000){failures=0;windowStart=Date.now();}
    if(failures>=5){res.setHeader('Retry-After',String(Math.ceil((windowStart+15*60*1000-Date.now())/1000)));return json(res,429,{error:'尝试过多，请 15 分钟后再试'});}
    const data=await body(req);if(!credentials.verify(data.password||'')){failures++;return json(res,401,{error:'口令不正确'});}
-   if(sessions.size>=50)sessions.delete(sessions.keys().next().value);
+   if(sessions.size>=50){const oldestRemote=[...sessions].find(([,value])=>!value.desktop);if(oldestRemote)sessions.delete(oldestRemote[0]);}
    const token=crypto.randomBytes(32).toString('base64url'),csrf=crypto.randomBytes(24).toString('base64url');sessions.set(token,{csrf,expires:Date.now()+TTL});
    res.setHeader('Set-Cookie',cookie(req,token,TTL/1000));return json(res,200,{ok:true,csrf});
   }
@@ -42,8 +43,8 @@ function createApp({source=new Source(),password=crypto.randomBytes(24).toString
    const data=await body(req);if(!credentials.verify(data.currentPassword)){failures++;return json(res,403,{error:'当前口令不正确'});}
    if(typeof data.newPassword!=='string'||!data.newPassword.length||data.newPassword.length>128)return json(res,400,{error:'新口令长度须为 1 到 128 个字符'});
    try{credentials.change(data.newPassword);}catch{return json(res,500,{error:'无法保存口令，请检查本机配置目录'});}
-   for(const token of sessions.keys())if(token!==s.token)sessions.delete(token);
-   for(const [response,token]of streams)if(token!==s.token){response.write('event: expired\ndata: {}\n\n');response.end();streams.delete(response);}
+   for(const [token,value] of sessions)if(token!==s.token&&!value.desktop)sessions.delete(token);
+   for(const [response,token]of streams)if(!sessions.has(token)){response.write('event: expired\ndata: {}\n\n');response.end();streams.delete(response);}
    return json(res,200,{ok:true});
   }
   if(p==='/api/quotas'&&req.method==='GET')return json(res,200,await quota.read({hiddenIds:url.searchParams.getAll('hidden').slice(0,500)}));
@@ -59,9 +60,9 @@ function createApp({source=new Source(),password=crypto.randomBytes(24).toString
  const server=http.createServer((req,res)=>handle(req,res).catch(()=>{if(!res.headersSent)json(res,400,{error:'请求格式不正确'});else res.end();}));
  server.requestTimeout=15000;server.headersTimeout=10000;
  const broadcast=()=>{for(const [res,token] of streams){const s=sessions.get(token);if(!s||s.expires<Date.now()){res.write('event: expired\ndata: {}\n\n');res.end();streams.delete(res);continue;}if(res.writableLength>65536){res.destroy();streams.delete(res);continue;}res.write(`event: update\ndata: ${JSON.stringify({version:source.version})}\n\n`);}};
- let timer;async function start(){await source.refresh();timer=setInterval(async()=>{if(await source.refresh())broadcast();},3000);timer.unref();return new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.removeListener('error',reject);resolve();});});}
+ let timer;async function start(){await source.refresh();await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.removeListener('error',reject);resolve();});});timer=setInterval(async()=>{try{if(await source.refresh())broadcast();}catch{if(source.meta?.history)source.meta.history={...source.meta.history,ok:false,error:'数据刷新失败，保留上次快照并自动重试'};broadcast();}},3000);timer.unref();}
  function stop(){clearInterval(timer);for(const res of streams.keys())res.end();return new Promise(resolve=>server.close(resolve));}
- return {server,start,stop,password,source};
+ return {server,start,stop,password,source,createDesktopSession};
 }
 if (require.main === module) {
  const app = createApp({password: 'jbc',credentialsFile: credentialsPath()});

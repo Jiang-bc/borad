@@ -1110,3 +1110,62 @@ footer {
     font-size: 38px;
   }
 }
+
+.titlebar { gap: 18px; padding-left: 20px; }
+.titlebar-theme { flex-shrink: 0; gap: 4px; }
+.titlebar-theme select { max-width: 85px; font-size: 12px; }
+.settings-button { display: flex; align-items: center; gap: 6px; padding: 0 9px; font-size: 12px; }
+main { padding-top: 24px; }
+.hero { min-height: 0; padding: 20px 0 28px; align-items: start; }
+.hero h1 { margin: 0 0 8px; font-size: 30px; line-height: 1.35; letter-spacing: -.02em; }
+.hero-description { font-size: 14px; line-height: 1.7; }
+.primary-button { margin-top: 18px; gap: 14px; }
+.overview { padding: 16px 20px 4px; box-shadow: none; }
+.overview-heading { padding-bottom: 10px; }
+.overview-row { min-height: 52px; }
+.workspace-card { min-height: 150px; padding: 16px; }
+.card-icon { margin-bottom: 10px; }
+.card-bottom { margin-top: 12px; }
+.utility-heading h2, .section-heading h2 { font-size: 14px; }
+.workspace-card p, .utility-heading p, .startup-control small { font-size: 12px; }
+.share-help, .share-value input, .data-note { font-size: 11px; }
+.push-panel { grid-column: 1 / -1; }
+.push-panel summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.push-panel summary svg { margin-inline: 4px; }
+.push-panel summary span { margin-inline-start: 8px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.push-form { display: grid; gap: 8px; max-width: 480px; margin-top: 16px; }
+.push-form > input { min-height: 36px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--panel); }
+.push-form fieldset { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.push-form fieldset label { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.push-form fieldset input { accent-color: var(--accent); }
+.push-form .startup-control { margin-top: 0; }
+.push-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+:root[data-theme="claude"] body { font-family: "DM Sans", "Noto Sans SC Variable", sans-serif; }
+:root[data-theme="claude"] .hero h1 { font-family: "Noto Serif SC UI", "Lora", serif; font-weight: 500; }
+:root[data-theme="claude"] .workspace-grid { gap: 16px; }
+:root[data-theme="claude"] .workspace-card { border-radius: 12px; }
+:root[data-theme="github"] body { font-family: "Segoe UI", "Noto Sans SC Variable", sans-serif; }
+:root[data-theme="github"] .hero h1 { font-family: "Segoe UI", "Noto Sans SC Variable", sans-serif; font-weight: 650; }
+:root[data-theme="github"] .workspace-grid { gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+:root[data-theme="github"] .workspace-card { border: 0; border-radius: 0; min-height: 140px; }
+:root[data-theme="github"] .workspace-card + .workspace-card { border-left: 1px solid var(--line); }
+:root[data-theme="github"] .primary-button, :root[data-theme="github"] .share-button { border-radius: 6px; }
+:root[data-theme="google"] body { font-family: "Roboto", "Noto Sans SC Variable", sans-serif; }
+:root[data-theme="google"] .hero { gap: 32px; }
+:root[data-theme="google"] .workspace-grid { gap: 16px; }
+:root[data-theme="google"] .workspace-card { background: var(--hero); border-color: transparent; min-height: 162px; padding: 20px; }
+:root[data-theme="google"] .card-icon { border-radius: 50%; }
+:root[data-theme="forest"] body { font-family: "DM Sans", "Noto Sans SC Variable", sans-serif; }
+:root[data-theme="forest"] .hero h1 { font-family: "Noto Serif SC UI", "Lora", serif; font-weight: 600; }
+:root[data-theme="forest"] .workspace-card { border-radius: 4px 18px 4px 18px; }
+:root[data-theme="forest"] .primary-button { border-radius: 4px 14px; }
+@media (max-width: 850px) {
+  .titlebar { gap: 8px; }
+  .titlebar-theme select { max-width: 70px; }
+  .settings-button span { display: none; }
+}
+@media (max-width: 680px) {
+  .hero { grid-template-columns: 1fr; gap: 18px; }
+  .hero h1 { font-size: 28px; }
+  :root[data-theme="github"] .workspace-card + .workspace-card { border-left: 0; border-top: 1px solid var(--line); }
+}

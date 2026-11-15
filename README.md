@@ -8,12 +8,12 @@
 
 从项目的 GitHub Releases 页面下载 Windows x64 版本：
 
-- **安装版** `Borad-1.0.0-win-x64.exe`：双击安装，再从桌面或开始菜单打开 Borad。
-- **免安装版** `Borad-1.0.0-win-x64.zip`：完整解压后，双击其中的 `Borad.exe`。请保留整个文件夹。
+- **安装版** `Borad-1.1.0-win-x64.exe`：双击安装，再从桌面或开始菜单打开 Borad。
+- **免安装版** `Borad-1.1.0-win-x64.zip`：完整解压后，双击其中的 `Borad.exe`。请保留整个文件夹。
 
-应用已内置 Electron 和 `cloudflared`，无需另装 Node.js、PowerShell 或浏览器。初始口令为 `jbc`；如果你以前修改过口令，请使用修改后的口令。登录后可在设置中修改口令并选择要隐藏的额度账号。
+应用已内置 Electron 和 `cloudflared`，无需另装 Node.js、PowerShell 或浏览器。桌面窗口直接打开请求记录，无需输入口令。公网访问的初始口令为 `jbc`；如果你以前修改过口令，请使用修改后的口令。可在设置中修改公网口令并选择要隐藏的额度账号。
 
-首页可切换 Claude、GitHub、Google 和森林四种主题，并可按需开启临时公网访问或设置开机启动。公网地址在重新连接时变化；关闭应用会结束分享和本机服务。
+窗口顶部可切换 Claude、GitHub、Google 和森林四种主题；首页可以设置开机启动、启动时自动分享，并通过 PushPlus 将公网链接发送到微信或 QQ。公网地址在重新连接时变化；关闭应用会结束分享和本机服务。
 
 Borad 读取当前 Windows 用户的 Magpie 数据，默认位于 `%USERPROFILE%\.config\magpie`。新电脑需要先安装、配置并使用 Magpie 才会出现自己的请求和用量；额度查询还需要本机 Magpie 命令。Borad 不包含账号和 API 密钥。
 

@@ -54,7 +54,14 @@ function quotaCard(c){
  const windowSection=windows.length?`<div class="quota-window-list">${windows.map(quotaWindow).join('')}</div>`:balances.length?'':'<p class="hint">暂无可读取的余额或额度窗口</p>';
  const state=quotaData?.refresh?.perProvider?.[c.provider];
  const progress=state?`<p class="quota-provider-state" role="status">采集进度：${esc(quotaStatus[state.status]||'状态未知')}${state.note?` · ${esc(state.note)}`:''}${state.retryAt?` · 可重试于 ${esc(quotaTime(state.retryAt))}`:''}</p>`:'';
- return `<article class="quota-card"><div class="quota-card-heading"><h2>${esc(c.name||c.provider)}</h2><span>${number(c.accountCount)} 个账号</span></div>${c.plan?`<p class="hint">${esc(c.plan)}</p>`:''}${c.last?'<p class="hint">最近服务过的供应商</p>':''}${progress}${c.error?`<p class="notice">${esc(c.error)}</p>`:''}${c.retained?'<p class="hint">保留上次采集数据</p>':''}${balanceSection}${c.balanceUnknownCount?`<p class="hint">${number(c.balanceUnknownCount)} 个账号余额未知</p>`:''}${windowSection}<p class="quota-collected">供应商采集：${esc(quotaTime(c.readAt))}${c.readAtLatest&&c.readAtLatest!==c.readAt?` — ${esc(quotaTime(c.readAtLatest))}`:''}</p><p class="hint">${esc(quotaFreshness(c))}</p><p class="hint">${esc(c.readAtNote||'')}</p></article>`;
+ return `<article class="quota-card" data-provider="${esc(c.provider)}"><div class="quota-card-heading"><h2>${esc(c.name||c.provider)}</h2><span>${number(c.accountCount)} 个账号</span></div>${c.plan?`<p class="hint">${esc(c.plan)}</p>`:''}${c.last?'<p class="hint">最近服务过的供应商</p>':''}${progress}${c.error?`<p class="notice">${esc(c.error)}</p>`:''}${c.retained?'<p class="hint">保留上次采集数据</p>':''}${balanceSection}${c.balanceUnknownCount?`<p class="hint">${number(c.balanceUnknownCount)} 个账号余额未知</p>`:''}${windowSection}<p class="quota-collected">供应商采集：${esc(quotaTime(c.readAt))}${c.readAtLatest&&c.readAtLatest!==c.readAt?` — ${esc(quotaTime(c.readAtLatest))}`:''}</p><p class="hint">${esc(quotaFreshness(c))}</p><p class="hint">${esc(c.readAtNote||'')}</p></article>`;
+}
+function renderQuotaCards(cards){
+ const container=$('quota-cards'),existing=new Map([...container.querySelectorAll('.quota-card')].map(element=>[element.dataset.provider,element])),visible=new Set(cards.map(card=>card.provider));
+ for(const [provider,element] of existing)if(!visible.has(provider))element.remove();
+ if(!cards.length){if(!container.querySelector('.empty'))container.innerHTML='<div class="empty">当前没有可显示的剩余额度。可切换供应商或刷新重试；查询失败的历史数据会保留。</div>';return;}
+ container.querySelector('.empty')?.remove();
+ for(const card of cards){const template=document.createElement('template');template.innerHTML=quotaCard(card);const next=template.content.firstElementChild,current=existing.get(card.provider);if(current){if(current.innerHTML!==next.innerHTML)current.innerHTML=next.innerHTML;}else container.append(next);}
 }
 function renderQuotas(data){
  quotaData=data;
@@ -67,11 +74,12 @@ function renderQuotas(data){
  const hiddenCount=accounts.filter(account=>hiddenQuotaAccounts.has(account.id)).length;
  $('quota-account-count').textContent=hiddenCount?`· 已隐藏 ${number(hiddenCount)} 个`:'';
  const cards=Array.isArray(data.cards)?data.cards:[],filter=$('quota-provider').value;
- const providers=[...new Set(cards.map(c=>c.provider))];if(filter&&!providers.includes(filter))providers.push(filter);
- $('quota-provider').innerHTML='<option value="">全部供应商</option>'+providers.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');$('quota-provider').value=filter;
+ const available=new Set(cards.map(c=>c.provider));if(filter)available.add(filter);
+ const providers=[...$('quota-provider').options].map(option=>option.value).filter(value=>value&&available.delete(value));providers.push(...available);
+ const providerSignature=JSON.stringify(providers);if($('quota-provider').dataset.signature!==providerSignature){$('quota-provider').innerHTML='<option value="">全部供应商</option>'+providers.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');$('quota-provider').dataset.signature=providerSignature;}$('quota-provider').value=filter;
  const exhausted=cards.filter(c=>c.isExhausted===true&&!c.error),shown=cards.filter(c=>(showExhausted||c.isExhausted!==true||c.error)&&(!filter||c.provider===filter));
  $('quota-count').textContent=`显示 ${number(shown.length)} 个供应商${showExhausted?'':` · 已隐藏 ${number(exhausted.length)} 个额度耗尽组`}${hiddenCount?` · ${number(hiddenCount)} 个账号未计入`:''}`;
- $('quota-cards').innerHTML=shown.map(quotaCard).join('')||'<div class="empty">当前没有可显示的剩余额度。可切换供应商或刷新重试；查询失败的历史数据会保留。</div>';
+ renderQuotaCards(shown);
  const refresh=data.refresh||{},states=Object.values(refresh.perProvider||{}),done=states.filter(s=>!['pending','running'].includes(s.status)).length;
  const detail=Object.entries(refresh.perProvider||{}).map(([provider,state])=>`${provider}：${quotaStatus[state.status]||'状态未知'}`).join('；');
  $('quota-refresh-state').textContent=(data.refreshing?`正在采集供应商额度：${done} / ${states.length} 完成`:(refresh.finishedAt?`上次采集完成：${quotaTime(refresh.finishedAt)}${refresh.error?` · ${refresh.error}`:' · 完成'}`:'额度页可见且未暂停时，每 60 秒采集供应商；缓存每 3 秒同步。'))+(detail?` · ${detail}`:'');

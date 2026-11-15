@@ -13,7 +13,7 @@ import {
   Layers3,
   Link2,
   LoaderCircle,
-  LockKeyhole,
+  Send,
   Monitor,
   Palette,
   Power,
@@ -25,6 +25,7 @@ import "./style.css";
 
 type View = "home" | "requests" | "tokens" | "quota" | "settings";
 type Theme = "claude" | "github" | "google" | "forest";
+type PushChannel = "wechat" | "qq";
 type State = {
   ready: boolean;
   error: string;
@@ -33,6 +34,11 @@ type State = {
   sharing: boolean;
   shareError: string;
   startup: boolean;
+  startupError: string;
+  autoShare: boolean;
+  push: { bound: boolean; channels: PushChannel[]; automatic: boolean };
+  pushResult: string;
+  pushBusy: boolean;
   version: string;
   records: number;
   sourceReady: boolean;
@@ -44,6 +50,10 @@ declare global {
       open(view: View): Promise<void>;
       share(enabled: boolean): Promise<State>;
       startup(enabled: boolean): Promise<State>;
+      autoShare(enabled: boolean): Promise<State>;
+      configurePush(options: { token: string; channels: PushChannel[]; automatic: boolean }): Promise<State>;
+      clearPush(): Promise<State>;
+      sendLink(): Promise<State>;
       copy(): Promise<void>;
       theme(theme: Theme): Promise<void>;
       subscribe(listener: (state: State) => void): () => void;
@@ -58,7 +68,12 @@ const initial: State = {
   sharing: false,
   shareError: "",
   startup: false,
-  version: "1.0.0",
+  startupError: "",
+  autoShare: false,
+  push: { bound: false, channels: [], automatic: false },
+  pushResult: "",
+  pushBusy: false,
+  version: "1.1.0",
   records: 0,
   sourceReady: false,
 };
@@ -192,6 +207,16 @@ function App() {
             </button>
           ))}
         </nav>
+        <label className="theme-select titlebar-theme" htmlFor="appearance">
+          <Palette size={15} aria-hidden="true" />
+          <span className="sr-only">界面主题</span>
+          <select id="appearance" value={theme} onChange={(event) => setTheme(event.target.value as Theme)}>
+            <option value="claude">Claude</option>
+            <option value="github">GitHub</option>
+            <option value="google">Google</option>
+            <option value="forest">森林</option>
+          </select>
+        </label>
         <button
           className="settings-button"
           disabled={!state.ready || busy}
@@ -199,37 +224,20 @@ function App() {
           aria-label="口令与显示设置"
         >
           <Settings2 size={18} />
+          <span>设置</span>
         </button>
       </header>
       <main>
         <div className="page-top">
           <span className="eyebrow">工作台概览</span>
-          <label className="theme-select" htmlFor="appearance">
-            <Palette size={14} aria-hidden="true" />
-            <span>外观</span>
-            <select
-              id="appearance"
-              value={theme}
-              onChange={(event) => setTheme(event.target.value as Theme)}
-            >
-              <option value="claude">暖纸 · Claude</option>
-              <option value="github">简洁 · GitHub</option>
-              <option value="google">清新 · Google</option>
-              <option value="forest">森林 · Sage</option>
-            </select>
-          </label>
         </div>
         <section className="hero" aria-labelledby="welcome-title">
           <div className="hero-copy">
             <h1 id="welcome-title">
-              看清每一次
-              <br />
-              调用。
+              用量工作台
             </h1>
             <p className="hero-description">
-              在一处查看请求、Token 用量和额度。
-              <br />
-              数据留在你的设备上，由你决定是否分享。
+              查看请求记录、Token 用量和供应商额度。
             </p>
             <button
               className="primary-button"
@@ -238,10 +246,6 @@ function App() {
             >
               进入工作台 <ArrowUpRight size={19} />
             </button>
-            <p className="hero-note">
-              <LockKeyhole size={12} /> 首次访问口令 <strong>jbc</strong>
-              <span>· 可在设置中修改</span>
-            </p>
           </div>
           <aside className="overview" aria-label="当前运行状态">
             <div className="overview-heading">
@@ -339,7 +343,7 @@ function App() {
                 <Globe2 size={20} />
               </div>
               <div>
-                <h2>随时随地，接着看</h2>
+                <h2>公网分享</h2>
                 <p>按需开启公网访问，用口令保护你的看板。</p>
               </div>
             </div>
@@ -395,6 +399,13 @@ function App() {
             <p className="share-help">
               临时地址会在重新连接后变化；关闭应用也会结束分享。
             </p>
+            <label className="startup-control" htmlFor="auto-share">
+              <span>打开 Borad 时自动开启公网分享</span>
+              <input type="checkbox" role="switch" id="auto-share" checked={state.autoShare} disabled={busy} onChange={(event) => {
+                const enabled = event.target.checked;
+                void run(async () => { setState(await window.borad.autoShare(enabled)); });
+              }} />
+            </label>
           </div>
           <div className="utility startup-panel">
             <div className="utility-heading">
@@ -402,13 +413,13 @@ function App() {
                 <Power size={20} />
               </div>
               <div>
-                <h2>下次见面，无需寻找</h2>
+                <h2>开机启动</h2>
                 <p>登录 Windows 时，自动打开 Borad。</p>
               </div>
             </div>
             <label className="startup-control" htmlFor="startup">
               <span>
-                {state.startup ? "已开启开机启动" : "开机自动启动"}
+                登录 Windows 时启动 Borad
                 <small>
                   {state.startup
                     ? "下次登录 Windows 时生效"
@@ -432,7 +443,41 @@ function App() {
                 }}
               />
             </label>
+            {state.startupError && <p className="service-error" role="alert">{state.startupError}</p>}
           </div>
+          <details className="utility push-panel">
+            <summary><Send size={18} aria-hidden="true" /> 公网链接推送 <span>{state.push.bound ? (state.push.automatic ? "自动推送已开启" : "已配置") : "未配置"}</span></summary>
+            <p className="share-help">先在 PushPlus 关注微信服务号或完成 QQ 机器人绑定，再填入 Token。推送内容只包含临时地址，访问仍需口令。</p>
+            <form className="push-form" key={JSON.stringify(state.push)} onSubmit={(event) => {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const fields = new FormData(form);
+              const channels = (["wechat", "qq"] as const).filter(channel => fields.has(channel));
+              void run(async () => {
+                setState(await window.borad.configurePush({ token: String(fields.get("token") ?? "").trim(), channels, automatic: fields.has("automatic") }));
+                form.reset();
+                setNotice("推送设置已保存。");
+              });
+            }}>
+              <label htmlFor="push-token">PushPlus Token {state.push.bound ? "（留空保留原 Token）" : ""}</label>
+              <input id="push-token" name="token" type="password" autoComplete="off" spellCheck={false} required={!state.push.bound} maxLength={128} />
+              <fieldset>
+                <legend>接收渠道</legend>
+                <label><input type="checkbox" name="wechat" defaultChecked={state.push.channels.includes("wechat")} /> 微信服务号</label>
+                <label><input type="checkbox" name="qq" defaultChecked={state.push.channels.includes("qq")} /> QQ 机器人</label>
+              </fieldset>
+              <label className="startup-control" htmlFor="auto-push">
+                <span>每次公网分享就绪后自动推送</span>
+                <input type="checkbox" role="switch" id="auto-push" name="automatic" defaultChecked={state.push.automatic} />
+              </label>
+              <div className="push-actions">
+                <button className="share-button" type="submit" disabled={busy || state.pushBusy}>保存推送设置</button>
+                <button className="share-button enabled" type="button" disabled={!state.push.bound || !state.address || busy || state.pushBusy} onClick={() => void run(async () => setState(await window.borad.sendLink()))}>立即推送</button>
+                {state.push.bound && <button className="share-button enabled" type="button" disabled={busy || state.pushBusy} onClick={() => void run(async () => setState(await window.borad.clearPush()))}>解除绑定</button>}
+              </div>
+            </form>
+            <p className="share-help" role="status">{state.pushResult || (state.address ? "" : "开启公网分享后可立即推送。")}</p>
+          </details>
         </section>
         {error && (
           <p className="service-error" role="alert">
