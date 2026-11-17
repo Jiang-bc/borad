@@ -1129,17 +1129,6 @@ main { padding-top: 24px; }
 .utility-heading h2, .section-heading h2 { font-size: 14px; }
 .workspace-card p, .utility-heading p, .startup-control small { font-size: 12px; }
 .share-help, .share-value input, .data-note { font-size: 11px; }
-.push-panel { grid-column: 1 / -1; }
-.push-panel summary { cursor: pointer; font-size: 14px; font-weight: 600; }
-.push-panel summary svg { margin-inline: 4px; }
-.push-panel summary span { margin-inline-start: 8px; color: var(--muted); font-size: 12px; font-weight: 400; }
-.push-form { display: grid; gap: 8px; max-width: 480px; margin-top: 16px; }
-.push-form > input { min-height: 36px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--panel); }
-.push-form fieldset { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; }
-.push-form fieldset label { display: flex; align-items: center; gap: 6px; min-height: 26px; }
-.push-form fieldset input { accent-color: var(--accent); }
-.push-form .startup-control { margin-top: 0; }
-.push-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 :root[data-theme="claude"] body { font-family: "DM Sans", "Noto Sans SC Variable", sans-serif; }
 :root[data-theme="claude"] .hero h1 { font-family: "Noto Serif SC UI", "Lora", serif; font-weight: 500; }
 :root[data-theme="claude"] .workspace-grid { gap: 16px; }

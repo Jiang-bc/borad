@@ -5,9 +5,7 @@ contextBridge.exposeInMainWorld("borad", {
   share: (enabled) => ipcRenderer.invoke("borad:share", enabled),
   startup: (enabled) => ipcRenderer.invoke("borad:startup", enabled),
   autoShare: (enabled) => ipcRenderer.invoke("borad:auto-share", enabled),
-  configurePush: (options) => ipcRenderer.invoke("borad:configure-push", options),
-  clearPush: () => ipcRenderer.invoke("borad:clear-push"),
-  sendLink: () => ipcRenderer.invoke("borad:send-link"),
+  background: (enabled) => ipcRenderer.invoke("borad:background", enabled),
   copy: () => ipcRenderer.invoke("borad:copy"),
   theme: (theme) => ipcRenderer.invoke("borad:theme", theme),
   subscribe: (listener) => {

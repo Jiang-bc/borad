@@ -3,21 +3,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const appId = 'com.borad.desktop';
-const pushChannels = ['wechat', 'qq'];
+const preferenceKeys = ['startup', 'startupPath', 'autoShare', 'background'];
 
-function createDesktopSettings({ directory, loginOptions, getLogin, setLogin, secrets }) {
+function createDesktopSettings({ directory, loginOptions, getLogin, setLogin }) {
   const file = path.join(directory, 'borad-settings.json');
   let preferences = {};
   try { preferences = JSON.parse(fs.readFileSync(file, 'utf8')) || {}; } catch {}
 
   function save(update) {
-    const next = { ...preferences, ...update };
+    const next = Object.fromEntries(Object.entries({ ...preferences, ...update }).filter(([key]) => preferenceKeys.includes(key)));
     const temporary = `${file}.tmp`;
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(temporary, JSON.stringify(next), { mode: 0o600 });
     fs.renameSync(temporary, file);
     preferences = next;
   }
+
+  if (Object.keys(preferences).some(key => !preferenceKeys.includes(key))) save({});
 
   function isStartupEnabled() {
     const login = getLogin(loginOptions);
@@ -40,8 +42,6 @@ function createDesktopSettings({ directory, loginOptions, getLogin, setLogin, se
     }
   }
 
-  const channels = () => pushChannels.filter(channel => Array.isArray(preferences.pushChannels) && preferences.pushChannels.includes(channel));
-
   return {
     restoreStartup,
     get startup() { return isStartupEnabled(); },
@@ -51,30 +51,8 @@ function createDesktopSettings({ directory, loginOptions, getLogin, setLogin, se
     },
     get autoShare() { return preferences.autoShare === true; },
     setAutoShare(enabled) { save({ autoShare: enabled === true }); },
-    get pushState() {
-      const bound = typeof preferences.pushSecret === 'string' && channels().length > 0;
-      return { bound, channels: channels(), automatic: bound && preferences.autoPush === true };
-    },
-    configurePush({ token, channels: selected, automatic }) {
-      if (!Array.isArray(selected) || !selected.length || selected.some(channel => !pushChannels.includes(channel)))
-        throw new Error('请至少选择一个接收渠道。');
-      if (typeof token !== 'string' || token.length > 128 || (token && !/^[a-zA-Z0-9_-]{16,128}$/.test(token)))
-        throw new Error('请输入有效的 PushPlus Token。');
-      if (!token && !preferences.pushSecret) throw new Error('请先填写 PushPlus Token。');
-      let pushSecret = preferences.pushSecret;
-      if (token) {
-        if (!secrets.isEncryptionAvailable()) throw new Error('Windows 无法安全保存推送凭据。');
-        pushSecret = secrets.encryptString(token).toString('base64');
-      }
-      save({ pushSecret, pushChannels: [...new Set(selected)], autoPush: automatic === true });
-    },
-    clearPush() { save({ pushSecret: undefined, pushChannels: [], autoPush: false }); },
-    pushCredentials() {
-      if (!this.pushState.bound) throw new Error('请先配置微信或 QQ 推送。');
-      try {
-        return { channels: channels(), token: secrets.decryptString(Buffer.from(preferences.pushSecret, 'base64')) };
-      } catch { throw new Error('无法读取推送凭据，请重新填写 PushPlus Token。'); }
-    },
+    get background() { return preferences.background === true; },
+    setBackground(enabled) { save({ background: enabled === true }); },
   };
 }
 

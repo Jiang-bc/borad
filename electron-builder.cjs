@@ -13,12 +13,12 @@ module.exports = {
     "desktop/preload.cjs",
     "desktop/dashboard-preload.cjs",
     "desktop/settings.cjs",
-    "desktop/link-push.cjs",
+    "desktop/cloudflared.cjs",
     "desktop/ui/**/*",
     "public/**/*",
   ],
   extraResources: [
-    { from: "desktop/bin/cloudflared.exe", to: "cloudflared.exe" },
+    { from: "assets/borad.ico", to: "borad.ico" },
     {
       from: "desktop/bin/cloudflared-LICENSE",
       to: "licenses/cloudflared-LICENSE.txt",

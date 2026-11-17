@@ -15,6 +15,7 @@ test('desktop opens requests without login and themes update the data view', { t
   const app = await electron.launch({ args, executablePath, env });
   let window;
   let originalTheme;
+  let originalBackground;
   try {
     window = await app.firstWindow();
     originalTheme = await window.locator('#appearance').inputValue();
@@ -67,11 +68,24 @@ test('desktop opens requests without login and themes update the data view', { t
     await dashboard.locator('#view-settings').waitFor({ state: 'visible' });
     await window.getByRole('button', { name: '首页', exact: true }).click();
     await window.getByRole('switch', { name: '打开 Borad 时自动开启公网分享', exact: true }).waitFor();
-    await window.getByText('公网链接推送', { exact: false }).first().click();
-    await window.locator('#push-token').waitFor({ state: 'visible' });
+    const background = window.locator('#background');
+    originalBackground = await background.isChecked();
+    await background.check();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+    assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), false);
+    const reopen = spawn(executablePath, args, { env, windowsHide: true, stdio: 'ignore' });
+    const reopenCode = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { reopen.kill(); reject(new Error('second instance did not exit')); }, 10000);
+      reopen.on('error', error => { clearTimeout(timer); reject(error); });
+      reopen.on('close', code => { clearTimeout(timer); resolve(code); });
+    });
+    assert.equal(reopenCode, 0);
+    await window.waitForFunction(() => document.visibilityState === 'visible');
+    assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), true);
     await window.setViewportSize({ width: 640, height: 700 });
     assert.equal(await window.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth), true);
   } finally {
+    if (window && originalBackground !== undefined) await window.locator('#background').setChecked(originalBackground).catch(() => {});
     if (window && originalTheme) await window.locator('#appearance').selectOption(originalTheme).catch(() => {});
     await app.close();
   }

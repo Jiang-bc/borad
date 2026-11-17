@@ -1,4 +1,3 @@
-tunnel-address.txt
 .env
 .env.*
 !.env.example
@@ -9,7 +8,7 @@ MagpieDashboard/
 node_modules/
 runtime/
 dist/
-release/
+release*/
 *.log
 *.pid
 *.zip

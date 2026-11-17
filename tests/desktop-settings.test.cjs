@@ -38,26 +38,43 @@ test('startup choice survives a move and automatic sharing is an independent opt
   assert.equal(reopened.autoShare, false);
 });
 
-test('push settings persist without storing or reporting the plaintext token', t => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'borad-push-settings-'));
+test('obsolete preferences and saved push credentials are removed while current choices survive', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'borad-settings-migration-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const options = {
-    directory,
-    secrets: {
-      isEncryptionAvailable: () => true,
-      encryptString: text => Buffer.from(text).reverse(),
-      decryptString: encrypted => Buffer.from(encrypted).reverse().toString(),
-    },
-  };
+  const file = path.join(directory, 'borad-settings.json');
+  fs.writeFileSync(file, JSON.stringify({
+    startup: true,
+    startupPath: 'C:\\Borad\\Borad.exe',
+    autoShare: true,
+    background: true,
+    pushSecret: 'obsolete-encrypted-token',
+    pushChannels: ['qq'],
+    autoPush: true,
+  }));
+  const settings = createDesktopSettings({ directory });
+  assert.equal(settings.autoShare, true);
+  assert.equal(settings.background, true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), {
+    startup: true,
+    startupPath: 'C:\\Borad\\Borad.exe',
+    autoShare: true,
+    background: true,
+  });
+  settings.setAutoShare(false);
+  const reopened = createDesktopSettings({ directory });
+  assert.equal(reopened.autoShare, false);
+  assert.equal(reopened.background, true);
+});
+
+test('background mode is opt-in and persists across restarts', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'borad-background-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const options = { directory };
   const settings = createDesktopSettings(options);
-  const token = 'example-test-token';
-  settings.configurePush({ token, channels: ['qq'], automatic: true });
+  assert.equal(settings.background, false);
+  settings.setBackground(true);
   const reopened = createDesktopSettings(options);
-  assert.deepEqual(reopened.pushState, { bound: true, channels: ['qq'], automatic: true });
-  assert.deepEqual(reopened.pushCredentials(), { token, channels: ['qq'] });
-  assert.ok(!fs.readFileSync(path.join(directory, 'borad-settings.json'), 'utf8').includes(token));
-  assert.ok(!JSON.stringify(reopened.pushState).includes(token));
-  assert.throws(() => reopened.configurePush({ token: '', channels: ['other'], automatic: true }));
-  reopened.clearPush();
-  assert.equal(createDesktopSettings(options).pushState.automatic, false);
+  assert.equal(reopened.background, true);
+  reopened.setBackground(false);
+  assert.equal(createDesktopSettings(options).background, false);
 });

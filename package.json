@@ -1,6 +1,6 @@
 {
   "name": "borad-desktop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Magpie usage dashboard for Windows",
   "main": "desktop/main.cjs",
   "private": true,

@@ -3,10 +3,10 @@ const {
   BrowserWindow,
   WebContentsView,
   Menu,
+  Tray,
   ipcMain,
   clipboard,
   dialog,
-  safeStorage,
 } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -14,7 +14,7 @@ const { spawn } = require("node:child_process");
 const { createApp } = require("../server.cjs");
 const { credentialsPath } = require("../credentials.cjs");
 const { appId, createDesktopSettings } = require("./settings.cjs");
-const { pushLink } = require("./link-push.cjs");
+const { ensureCloudflared } = require("./cloudflared.cjs");
 
 const port = 18790;
 const origin = `http://127.0.0.1:${port}`;
@@ -24,16 +24,18 @@ let window,
   dashboard,
   service,
   settings,
+  tray,
   ready = false,
   error = "",
   active = "home",
   quitting = false;
 let tunnel,
+  downloadController,
   address = "",
   shareError = "",
   deadline;
 let theme = "claude";
-let pushResult = "", pushBusy = false, pushGeneration = 0, startupError = "";
+let startupError = "";
 
 function status() {
   return {
@@ -41,14 +43,13 @@ function status() {
     error,
     active,
     address,
-    sharing: Boolean(tunnel),
+    sharing: Boolean(tunnel || downloadController),
+    downloading: Boolean(downloadController),
     shareError,
     startup: settings.startup,
     startupError,
     autoShare: settings.autoShare,
-    push: settings.pushState,
-    pushResult,
-    pushBusy,
+    background: settings.background,
     version: app.getVersion(),
     records: service?.source?.history?.length || 0,
     sourceReady: service?.source?.meta?.history?.ok === true,
@@ -60,6 +61,27 @@ function loginOptions() {
 function notify() {
   if (window && !window.isDestroyed())
     window.webContents.send("borad:update", status());
+}
+function showWindow() {
+  if (!window || window.isDestroyed()) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+}
+function createTray() {
+  if (tray) return;
+  const icon = app.isPackaged
+    ? path.join(process.resourcesPath, "borad.ico")
+    : path.join(__dirname, "..", "assets", "borad.ico");
+  const created = new Tray(icon);
+  created.setToolTip("Borad");
+  created.setContextMenu(Menu.buildFromTemplate([
+    { label: "打开 Borad", click: showWindow },
+    { type: "separator" },
+    { label: "退出 Borad", click: () => app.quit() },
+  ]));
+  created.on("click", showWindow);
+  tray = created;
 }
 function secure(contents, allowed) {
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -121,41 +143,41 @@ async function navigate(view) {
 }
 function stopShare() {
   clearTimeout(deadline);
+  if (downloadController) downloadController.abort();
+  downloadController = null;
   const child = tunnel;
   tunnel = null;
   address = "";
-  pushGeneration++;
-  pushResult = "";
-  pushBusy = false;
   if (child) child.kill();
   notify();
 }
-async function sendShareLink() {
-  if (pushBusy || !address || quitting) return;
-  const generation = ++pushGeneration;
-  pushBusy = true;
-  pushResult = "正在提交推送…";
+async function startShare() {
+  if (tunnel || downloadController || !ready) return;
+  shareError = "";
+  const controller = new AbortController();
+  downloadController = controller;
   notify();
+  let binary;
   try {
-    const { sent, failed } = await pushLink(address, settings.pushCredentials());
-    if (generation !== pushGeneration) return;
-    const names = channels => channels.map(channel => channel === "wechat" ? "微信" : "QQ").join("、");
-    pushResult = [sent.length && `${names(sent)}：推送请求已提交`, failed.length && `${names(failed)}：推送失败，请检查绑定、Token 或网络`].filter(Boolean).join("；");
+    binary = await ensureCloudflared({
+      directory: path.join(app.getPath("userData"), "components"),
+      signal: controller.signal,
+      candidates: [
+        path.join(process.resourcesPath, "cloudflared.exe"),
+        path.join(__dirname, "bin", "cloudflared.exe"),
+        process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Microsoft", "WinGet", "Links", "cloudflared.exe"),
+      ].filter(Boolean),
+    });
   } catch (cause) {
-    if (generation === pushGeneration) pushResult = cause.message;
-  } finally {
-    if (generation === pushGeneration) {
-      pushBusy = false;
+    if (downloadController === controller) {
+      downloadController = null;
+      shareError = `公网组件下载失败：${cause.message}。请检查网络后重试。`;
       notify();
     }
+    return;
   }
-}
-function startShare() {
-  if (tunnel || !ready) return;
-  shareError = "";
-  const binary = app.isPackaged
-    ? path.join(process.resourcesPath, "cloudflared.exe")
-    : path.join(__dirname, "bin", "cloudflared.exe");
+  if (downloadController !== controller || quitting) return;
+  downloadController = null;
   const child = spawn(binary, ["tunnel", "--no-autoupdate", "--protocol", "http2", "--url", origin], {
     windowsHide: true,
     stdio: ["ignore", "ignore", "pipe"],
@@ -185,7 +207,6 @@ function startShare() {
       address = candidate;
       clearTimeout(deadline);
       notify();
-      if (settings.pushState.automatic) void sendShareLink();
     }
   });
   child.on("error", () => fail("分享组件启动失败，请重新安装 Borad。"));
@@ -211,7 +232,6 @@ async function launch() {
     loginOptions: loginOptions(),
     getLogin: options => app.getLoginItemSettings(options),
     setLogin: options => app.setLoginItemSettings(options),
-    secrets: safeStorage,
   });
   try { settings.restoreStartup(); } catch { startupError = "未能恢复开机启动，请在首页重新设置。"; }
   window = new BrowserWindow({
@@ -231,10 +251,13 @@ async function launch() {
     },
   });
   secure(window.webContents, (url) => url === home);
+  if (settings.background) {
+    try { createTray(); } catch { startupError = "系统托盘初始化失败，关闭窗口将退出程序。"; }
+  }
   handle("borad:state", status);
   handle("borad:open", navigate);
   handle("borad:share", (enabled) => {
-    if (enabled === true) startShare();
+    if (enabled === true) void startShare();
     else stopShare();
     return status();
   });
@@ -254,20 +277,13 @@ async function launch() {
     settings.setAutoShare(enabled);
     return status();
   });
-  handle("borad:configure-push", options => {
-    settings.configurePush(options);
-    if (!pushBusy) pushResult = "";
-    return status();
-  });
-  handle("borad:clear-push", () => {
-    settings.clearPush();
-    pushGeneration++;
-    pushBusy = false;
-    pushResult = "";
-    return status();
-  });
-  handle("borad:send-link", async () => {
-    await sendShareLink();
+  handle("borad:background", enabled => {
+    if (enabled === true) createTray();
+    settings.setBackground(enabled);
+    if (enabled !== true && tray) {
+      tray.destroy();
+      tray = null;
+    }
     return status();
   });
   handle("borad:theme", (value) => {
@@ -288,6 +304,12 @@ async function launch() {
     });
   });
   window.on("resize", resize);
+  window.on("close", event => {
+    if (!quitting && settings.background && tray) {
+      event.preventDefault();
+      window.hide();
+    }
+  });
   window.on("closed", () => {
     if (dashboard && !dashboard.webContents.isDestroyed())
       dashboard.webContents.close();
@@ -312,16 +334,13 @@ async function launch() {
   }
   notify();
   if (ready && !quitting) {
-    if (settings.autoShare) startShare();
+    if (settings.autoShare) void startShare();
     await navigate("requests");
   }
 }
 if (app.requestSingleInstanceLock()) {
   app.on("second-instance", () => {
-    if (window) {
-      if (window.isMinimized()) window.restore();
-      window.focus();
-    }
+    showWindow();
   });
   app.on("before-quit", () => {
     quitting = true;

@@ -10,7 +10,7 @@ function createApp({source=new Source(),password=crypto.randomBytes(24).toString
  const credentials=createCredentialStore({file:credentialsFile,initialPassword:password});
  function headers(res){res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Cross-Origin-Opener-Policy','same-origin');res.setHeader('Cache-Control','no-store');}
  function json(res,status,body){headers(res);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(body));}
- function hostAllowed(req){const host=req.headers.host; if([`127.0.0.1:${port}`,`localhost:${port}`].includes(host))return true;if(typeof publicHost==='function')return host===publicHost();if(publicHost&&host===publicHost)return true;try{return host===new URL(fs.readFileSync(path.join(DIR,'tunnel-address.txt'),'utf8').trim()).host;}catch{return false;}}
+ function hostAllowed(req){const host=req.headers.host; if([`127.0.0.1:${port}`,`localhost:${port}`].includes(host))return true;if(typeof publicHost==='function')return host===publicHost();return Boolean(publicHost&&host===publicHost);}
  function session(req){const token=/(?:^|;\s*)_mpr=([\w-]+)/.exec(req.headers.cookie||'')?.[1],s=sessions.get(token);if(!s||s.expires<Date.now()){if(s)sessions.delete(token);return null;}if(s.desktop&&(req.headers.host!==`127.0.0.1:${port}`||req.headers['x-forwarded-proto']||req.headers['cf-connecting-ip']))return null;return {...s,token};}
  function createDesktopSession(){for(const [token,value] of sessions)if(value.desktop&&value.expires>Date.now())return token;const token=crypto.randomBytes(32).toString('base64url'),csrf=crypto.randomBytes(24).toString('base64url');sessions.set(token,{csrf,expires:Date.now()+730*TTL,desktop:true});return token;}
  function cookie(req,value,age){return `_mpr=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${req.headers['x-forwarded-proto']==='https'?'; Secure':''}`;}
@@ -23,7 +23,7 @@ function createApp({source=new Source(),password=crypto.randomBytes(24).toString
   const url=new URL(req.url,'http://local'),p=url.pathname,write=!['GET','HEAD'].includes(req.method);
   if(p.startsWith('/api/')&&!originOk(req,write))return json(res,403,{error:'请求来源校验失败'});
   if(req.method==='GET'&&files[p]){headers(res);res.writeHead(200,{'Content-Type':files[p][1]});return res.end(fs.readFileSync(path.join(DIR,'public',files[p][0])));}
-  if(p==='/api/health'&&req.method==='GET')return json(res,200,{app:'magpie-requests',...(process.env.MAGPIE_INSTANCE?{instance:process.env.MAGPIE_INSTANCE}:{})});
+  if(p==='/api/health'&&req.method==='GET')return json(res,200,{app:'magpie-requests'});
   if(p==='/api/login'&&req.method==='POST'){
    if(Date.now()-windowStart>15*60*1000){failures=0;windowStart=Date.now();}
    if(failures>=5){res.setHeader('Retry-After',String(Math.ceil((windowStart+15*60*1000-Date.now())/1000)));return json(res,429,{error:'尝试过多，请 15 分钟后再试'});}

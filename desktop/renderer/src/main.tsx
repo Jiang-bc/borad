@@ -13,7 +13,6 @@ import {
   Layers3,
   Link2,
   LoaderCircle,
-  Send,
   Monitor,
   Palette,
   Power,
@@ -25,20 +24,18 @@ import "./style.css";
 
 type View = "home" | "requests" | "tokens" | "quota" | "settings";
 type Theme = "claude" | "github" | "google" | "forest";
-type PushChannel = "wechat" | "qq";
 type State = {
   ready: boolean;
   error: string;
   active: View;
   address: string;
   sharing: boolean;
+  downloading: boolean;
   shareError: string;
   startup: boolean;
   startupError: string;
   autoShare: boolean;
-  push: { bound: boolean; channels: PushChannel[]; automatic: boolean };
-  pushResult: string;
-  pushBusy: boolean;
+  background: boolean;
   version: string;
   records: number;
   sourceReady: boolean;
@@ -51,9 +48,7 @@ declare global {
       share(enabled: boolean): Promise<State>;
       startup(enabled: boolean): Promise<State>;
       autoShare(enabled: boolean): Promise<State>;
-      configurePush(options: { token: string; channels: PushChannel[]; automatic: boolean }): Promise<State>;
-      clearPush(): Promise<State>;
-      sendLink(): Promise<State>;
+      background(enabled: boolean): Promise<State>;
       copy(): Promise<void>;
       theme(theme: Theme): Promise<void>;
       subscribe(listener: (state: State) => void): () => void;
@@ -66,13 +61,12 @@ const initial: State = {
   active: "home",
   address: "",
   sharing: false,
+  downloading: false,
   shareError: "",
   startup: false,
   startupError: "",
   autoShare: false,
-  push: { bound: false, channels: [], automatic: false },
-  pushResult: "",
-  pushBusy: false,
+  background: false,
   version: "1.1.0",
   records: 0,
   sourceReady: false,
@@ -358,7 +352,7 @@ function App() {
                   readOnly
                   value={state.address}
                   placeholder={
-                    state.sharing ? "正在建立连接…" : "目前仅在这台电脑上访问"
+                    state.downloading ? "正在准备公网组件…" : state.sharing ? "正在建立连接…" : "目前仅在这台电脑上访问"
                   }
                 />
                 <button
@@ -396,8 +390,8 @@ function App() {
                   : "开启分享"}
               </button>
             </div>
-            <p className="share-help">
-              临时地址会在重新连接后变化；关闭应用也会结束分享。
+            <p className="share-help" role="status">
+              {state.downloading ? "正在准备公网组件，首次使用需要联网下载，请稍候。" : "首次开启需联网下载公网组件；临时地址在重新连接后变化。"}
             </p>
             <label className="startup-control" htmlFor="auto-share">
               <span>打开 Borad 时自动开启公网分享</span>
@@ -444,40 +438,14 @@ function App() {
               />
             </label>
             {state.startupError && <p className="service-error" role="alert">{state.startupError}</p>}
+            <label className="startup-control" htmlFor="background">
+              <span>关闭窗口后继续在后台运行<small>关闭时隐藏到系统托盘；右键托盘图标可退出。</small></span>
+              <input type="checkbox" role="switch" id="background" checked={state.background} disabled={busy} onChange={(event) => {
+                const enabled = event.target.checked;
+                void run(async () => { setState(await window.borad.background(enabled)); });
+              }} />
+            </label>
           </div>
-          <details className="utility push-panel">
-            <summary><Send size={18} aria-hidden="true" /> 公网链接推送 <span>{state.push.bound ? (state.push.automatic ? "自动推送已开启" : "已配置") : "未配置"}</span></summary>
-            <p className="share-help">先在 PushPlus 关注微信服务号或完成 QQ 机器人绑定，再填入 Token。推送内容只包含临时地址，访问仍需口令。</p>
-            <form className="push-form" key={JSON.stringify(state.push)} onSubmit={(event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const fields = new FormData(form);
-              const channels = (["wechat", "qq"] as const).filter(channel => fields.has(channel));
-              void run(async () => {
-                setState(await window.borad.configurePush({ token: String(fields.get("token") ?? "").trim(), channels, automatic: fields.has("automatic") }));
-                form.reset();
-                setNotice("推送设置已保存。");
-              });
-            }}>
-              <label htmlFor="push-token">PushPlus Token {state.push.bound ? "（留空保留原 Token）" : ""}</label>
-              <input id="push-token" name="token" type="password" autoComplete="off" spellCheck={false} required={!state.push.bound} maxLength={128} />
-              <fieldset>
-                <legend>接收渠道</legend>
-                <label><input type="checkbox" name="wechat" defaultChecked={state.push.channels.includes("wechat")} /> 微信服务号</label>
-                <label><input type="checkbox" name="qq" defaultChecked={state.push.channels.includes("qq")} /> QQ 机器人</label>
-              </fieldset>
-              <label className="startup-control" htmlFor="auto-push">
-                <span>每次公网分享就绪后自动推送</span>
-                <input type="checkbox" role="switch" id="auto-push" name="automatic" defaultChecked={state.push.automatic} />
-              </label>
-              <div className="push-actions">
-                <button className="share-button" type="submit" disabled={busy || state.pushBusy}>保存推送设置</button>
-                <button className="share-button enabled" type="button" disabled={!state.push.bound || !state.address || busy || state.pushBusy} onClick={() => void run(async () => setState(await window.borad.sendLink()))}>立即推送</button>
-                {state.push.bound && <button className="share-button enabled" type="button" disabled={busy || state.pushBusy} onClick={() => void run(async () => setState(await window.borad.clearPush()))}>解除绑定</button>}
-              </div>
-            </form>
-            <p className="share-help" role="status">{state.pushResult || (state.address ? "" : "开启公网分享后可立即推送。")}</p>
-          </details>
         </section>
         {error && (
           <p className="service-error" role="alert">
@@ -492,7 +460,7 @@ function App() {
         </footer>
         <p className="data-note">
           Borad 展示本机 Magpie 已有的用量数据；新电脑需要先安装并使用
-          Magpie。桌面应用已内置运行环境和分享组件。
+          Magpie。桌面应用已内置运行环境，首次分享时按需准备公网组件。
         </p>
       </main>
     <div className="toast" role={noticeError ? 'alert' : 'status'} data-kind={noticeError ? 'error' : 'success'} hidden={!notice}>
